@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hiking Trail Finder (GIS Project) </title>
+
+  <!-- Leaflet is the map library I'm using -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    header { padding: 12px 14px; background: #f2f2f2; border-bottom: 1px solid #ddd; }
+    header h1 { margin: 0; font-size: 18px; }
+    header p { margin: 6px 0 0; font-size: 13px; color: #444; }
+
+    .layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 64px); }
+    .panel { padding: 12px; border-right: 1px solid #0B6623; overflow: auto; background: #0B6623; }
+
+    label { display: block; margin-top: 10px; font-size: 13px; color:#f0f0f0; font-weight: 150; }
+    input, select, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 6px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    button { cursor: pointer; background: white; }
+    button:hover { background: #f0f0f0; }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    #count { margin-top: 10px; font-size: 12px; color: #f0f0f0; }
+    #trailList { margin-top: 10px; display: grid; gap: 8px; }
+
+    .card {
+      padding: 10px;
+      border: 1px solid #f0f0f0;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+    }
+    .card:hover { background: #f8f8f8; }
+
+    .name { font-weight: bold; margin-bottom: 6px; }
+    .small { font-size: 12px; color: #444; margin-top: 4px; }
+
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 6px;
+      border: 1px solid #ccc;
+      border-radius: 999px;
+      margin-right: 6px;
+      margin-top: 4px;
+      background: #fff;
+    }
+
+    #map { height: 100%; width: 100%; }
+
+    @media (max-width: 920px) {
+      .layout { grid-template-columns: 1fr; }
+      .panel { border-right: none; border-bottom: 1px solid #ddd; }
+      #map { height: 60vh; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Hiking Trail Finder (GIS Project)</h1>
+    <p>Click markers for information about the hike • You can sort by distance and difficulty • You can also use your specific location to view your opinions! </p>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <label for="search">Search</label>
+      <input id="search" type="text" placeholder="Type a Trail Name..." />
+
+      <div class="row2">
+        <div>
+          <label for="difficulty">Difficulty</label>
+          <select id="difficulty">
+            <option value="All">All</option>
+            <option value="Easy">Easy</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="sort">Sort</label>
+          <select id="sort">
+            <option value="distance">Closest First</option>
+            <option value="name">Name A–Z</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="basemap">Basemap</label>
+      <select id="basemap">
+        <option value="osm">Road Map</option>
+        <option value="topo">Topography Map</option>
+      </select>
+
+      <button id="useLocation">Use your location (for distance)</button>
+
+      <div id="count"></div>
+      <div id="trailList"></div>
+    </aside>
+
+    <main id="map"></main>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // This is basically my "database" for the project.
+    // Each one becomes a marker, and will show the additional information such as the name of the hike, the difficulty level, distance in miles, any notes about the hike, along with if the trail is kid
+    // friendly and/or pet friendly as well as the latitude and longitude inside of the popup.
+    const trails = [
+      { id: 1,  name: "R Mountain Loop",           difficulty: "Easy",     miles: 1.8,  notes: "Great hike for a sunset view!",           kidFriendly: true,  petFriendly: true,  lat: 43.8156, lng: -111.7833 },
+      { id: 2,  name: "Cress Creek Nature Trail",  difficulty: "Easy",     miles: 2.2,  notes: "Nice and simple walk.",          kidFriendly: true,  petFriendly: true,  lat: 43.7270, lng: -111.7930 },
+      { id: 3,  name: "Canyon Creek Ridge",        difficulty: "Moderate", miles: 4.9,  notes: "Has a little of a climb but it will be worth it.",            kidFriendly: false, petFriendly: true,  lat: 43.6708, lng: -111.6506 },
+      { id: 4,  name: "Teton Viewpoint Hike",      difficulty: "Easy",     miles: 2.5,  notes: "Has great views, not too hard.",                    kidFriendly: true,  petFriendly: true,  lat: 43.9310, lng: -111.3180 },
+      { id: 5,  name: "Aspen Grove Trail",         difficulty: "Moderate", miles: 5.4,  notes: "This is a great fall hike, the colors look amazing!",                kidFriendly: true,  petFriendly: false, lat: 43.6040, lng: -111.2530 },
+      { id: 6,  name: "Mesa Falls Overlook Trail", difficulty: "Easy",     miles: 1.2,  notes: "Short paved path to waterfalls.",     kidFriendly: true,  petFriendly: true,  lat: 44.2054, lng: -111.3167 },
+      { id: 7,  name: "Warm River Loop",           difficulty: "Easy",     miles: 3.0,  notes: "Mostly flat, not much of a scenic view.",                   kidFriendly: true,  petFriendly: true,  lat: 44.1012, lng: -111.3194 },
+      { id: 8,  name: "Big Springs Boardwalk",     difficulty: "Easy",     miles: 0.8,  notes: "Boardwalk + clear water.",       kidFriendly: true,  petFriendly: false, lat: 44.4755, lng: -111.3286 },
+      { id: 9,  name: "Island Park Meadows",       difficulty: "Moderate", miles: 4.2,  notes: "Wildflowers in summer are beautiful.",         kidFriendly: true,  petFriendly: true,  lat: 44.4177, lng: -111.3719 },
+      { id: 10, name: "Sawtell Peak Ascent",       difficulty: "Hard",     miles: 9.0,  notes: "Can be a long hike make sure to pack plenty of water and bring layers.",       kidFriendly: false, petFriendly: true,  lat: 44.6120, lng: -111.5160 },
+      { id: 11, name: "Heise Hills Traverse",      difficulty: "Moderate", miles: 6.1,  notes: "Good workout, prepare for a longer distance.",                  kidFriendly: true,  petFriendly: true,  lat: 43.5990, lng: -111.6700 },
+      { id: 12, name: "Kelly Canyon Ridge",        difficulty: "Moderate", miles: 5.7,  notes: "This one has steeper sections, so watch your step!",              kidFriendly: false, petFriendly: true,  lat: 43.5200, lng: -111.5700 },
+      { id: 13, name: "Palisades Lake View",       difficulty: "Easy",     miles: 2.0,  notes: "A nice hike, not too long, can be quick hike to a lake view.",               kidFriendly: true,  petFriendly: true,  lat: 43.2800, lng: -111.2060 },
+      { id: 14, name: "Snake River Overlook Walk", difficulty: "Easy",     miles: 1.0,  notes: "Easy river walk with a front water view.",               kidFriendly: true,  petFriendly: true,  lat: 43.4700, lng: -111.9700 },
+      { id: 15, name: "Pine Creek Canyon",         difficulty: "Moderate", miles: 6.8,  notes: "Shady canyon parts, great for a picnic or a snack break.",            kidFriendly: false, petFriendly: true,  lat: 43.9400, lng: -111.9000 },
+      { id: 16, name: "Birch Creek Scenic Loop",   difficulty: "Easy",     miles: 3.6,  notes: "Pretty easy walk, nice if you want a loop.",                    kidFriendly: true,  petFriendly: true,  lat: 43.7000, lng: -112.8500 },
+      { id: 17, name: "Hell's Half Acre Rim",      difficulty: "Easy",     miles: 1.5,  notes: "Cool lava area, would visit in the spring.",                kidFriendly: true,  petFriendly: true,  lat: 43.3490, lng: -112.4510 },
+      { id: 18, name: "Craters Backcountry Spur",  difficulty: "Hard",     miles: 10.2, notes: "Pretty remote would highly recommend bringing your own water.",         kidFriendly: false, petFriendly: false, lat: 43.4200, lng: -113.5500 },
+      { id: 19, name: "Sun Valley Baldy View",     difficulty: "Hard",     miles: 8.6,  notes: "Very steep so watch your step but totally worth it!",             kidFriendly: false, petFriendly: true,  lat: 43.6950, lng: -114.3520 },
+      { id: 20, name: "Stanley Lake Shore Walk",   difficulty: "Easy",     miles: 2.1,  notes: "Nice lake walk, bring sunscreen not too much shade, can get pretty hot in the summer time.",                kidFriendly: true,  petFriendly: true,  lat: 44.2160, lng: -115.0090 },
+      { id: 21, name: "Redfish Lake Alpine Trail", difficulty: "Moderate", miles: 7.3,  notes: "Classic mountain trail, can be long if not prepared.",        kidFriendly: false, petFriendly: true,  lat: 44.1130, lng: -114.9220 }
+    ];
+
+    // Basemaps (so it meets the "basemap" requirement)
+    const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    });
+
+    const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxZoom: 17,
+      attribution: "&copy; OpenTopoMap contributors"
+    });
+
+    // Create the map and it start on a road basemap
+    const map = L.map("map", { layers: [osm] }).setView([43.82, -111.79], 9);
+    let currentBase = osm;
+
+    // Markers go into this layer so I can clear/re-draw them easily
+    const markerLayer = L.layerGroup().addTo(map);
+    const markerById = new Map();
+
+    // For sorting by distance, I need a reference point.
+    // If user allows location, use that. Otherwise I just use map center.
+    let userLatLng = null;
+
+    // Distance math (Haversine). I didn’t invent this, I looked up how to do it.
+    function toRad(deg) { return deg * Math.PI / 180; }
+    function haversineMiles(lat1, lon1, lat2, lon2) {
+      const R = 3958.7613;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    function getDistance(trail) {
+      const ref = userLatLng ?? map.getCenter();
+      return haversineMiles(ref.lat, ref.lng, trail.lat, trail.lng);
+    }
+
+    function tag(text) {
+      return `<span class="tag">${text}</span>`;
+    }
+
+    function popupHtml(t) {
+      const dist = getDistance(t);
+      const kids = t.kidFriendly ? "Kid Friendly" : "Not Kid Friendly";
+      const pets = t.petFriendly ? "Pet Friendly" : "No Pets";
+      return `
+        <div>
+          <div style="font-weight:bold; margin-bottom:6px;">${t.name}</div>
+          <div>${tag(t.difficulty)} ${tag(t.miles + " miles")} ${tag(dist.toFixed(1) + " mi away")}</div>
+          <div style="margin-top:6px;">${tag(kids)} ${tag(pets)}</div>
+          <div style="margin-top:6px;">${t.notes}</div>
+        </div>
+      `;
+    }
+
+    function clearMarkers() {
+      markerLayer.clearLayers();
+      markerById.clear();
+    }
+
+    function addMarkers(list) {
+      list.forEach(t => {
+        const m = L.marker([t.lat, t.lng]).bindPopup(popupHtml(t));
+        m.addTo(markerLayer);
+        markerById.set(t.id, m);
+      });
+    }
+
+    function renderList(list) {
+      const wrap = document.getElementById("trailList");
+      wrap.innerHTML = "";
+
+      list.forEach(t => {
+        const dist = getDistance(t);
+        const kids = t.kidFriendly ? "Kid Friendly" : "Not Kid friendly";
+        const pets = t.petFriendly ? "Pet Friendly" : "No Pets";
+
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="name">${t.name}</div>
+          <div>${tag(t.difficulty)} ${tag(t.miles + " mi")} ${tag(dist.toFixed(1) + " mi away")}</div>
+          <div class="small">${tag(kids)} ${tag(pets)}</div>
+          <div class="small">${t.notes}</div>
+        `;
+
+        div.addEventListener("click", () => {
+          const marker = markerById.get(t.id);
+          if (!marker) return;
+          map.setView([t.lat, t.lng], 13);
+          marker.openPopup();
+        });
+
+        wrap.appendChild(div);
+      });
+
+      document.getElementById("count").textContent =
+        `Showing ${list.length} of ${trails.length} trails (distance uses ${userLatLng ? "my location" : "map center"})`;
+    }
+
+    function applyStuff() {
+      const q = document.getElementById("search").value.trim().toLowerCase();
+      const d = document.getElementById("difficulty").value;
+      const sort = document.getElementById("sort").value;
+
+      let list = trails.filter(t => {
+        const matchesName = !q || t.name.toLowerCase().includes(q);
+        const matchesDiff = (d === "All") || (t.difficulty === d);
+        return matchesName && matchesDiff;
+      });
+
+      if (sort === "name") {
+        list.sort((a, b) => a.name.localeCompare(b.name));
+      } else {
+        list.sort((a, b) => getDistance(a) - getDistance(b));
+      }
+
+      clearMarkers();
+      addMarkers(list);
+      renderList(list);
+    }
+
+    // First load
+    applyStuff();
+
+    // Inputs
+    document.getElementById("search").addEventListener("input", applyStuff);
+    document.getElementById("difficulty").addEventListener("change", applyStuff);
+    document.getElementById("sort").addEventListener("change", applyStuff);
+
+    // Basemap switch
+    document.getElementById("basemap").addEventListener("change", (e) => {
+      map.removeLayer(currentBase);
+      currentBase = (e.target.value === "topo") ? topo : osm;
+      map.addLayer(currentBase);
+    });
+
+    // If we don't have a location, moving the map changes the "distance" reference (map center)
+    map.on("moveend", () => {
+      if (!userLatLng) applyStuff();
+    });
+
+    // Use location button
+    document.getElementById("useLocation").addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        alert("This browser doesn't support location.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          map.setView([userLatLng.lat, userLatLng.lng], 12);
+
+          // Little marker so you can see where you are
+          L.circleMarker([userLatLng.lat, userLatLng.lng], { radius: 7 })
+            .addTo(map)
+            .bindPopup("Me")
+            .openPopup();
+
+          applyStuff();
+        },
+        () => {
+          alert("Could not get your location, so the map center will be your point of reference for distance.");
+          userLatLng = null;
+          applyStuff();
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    });
+  </script>
+</body>
+</html>
