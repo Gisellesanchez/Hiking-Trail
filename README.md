@@ -1,6 +1,6 @@
-# Project Title (Update)
+# Hiking Helper
 
-Add a description of your project here.
+I created this project with the simple goal of creating a GIS-based Hiking Helper for the location of Rexburg, Idaho. The information is displayed on an interactive map website. Allowing the user to click on acurrate markers to provide information about the hike, such as the trail difficulty, distance, if the trail is kid or pet friendly and a small description of the hike. The app also has a way to filter by the difficulty level, as well as hike distance. I was also able to demonstrate a basic understanding of GIS concepts through the map display, having a basemap aswell as a geographic interactive setting.  
 
 ## Instructions for Build and Use
 
@@ -8,9 +8,10 @@ Add a description of your project here.
 
 Steps to build and/or run the software:
 
-1. First step here
-2. 
-3.
+1. Download or open the saved project files on your computer.
+2. Open the project folder in Visual Studio Code
+3. Make sure you are in the main file is which is 'index.html'.
+4. Install and use the "Live Server" 
 
 Instructions for using the software:
 
